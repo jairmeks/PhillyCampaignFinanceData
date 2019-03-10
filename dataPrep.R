@@ -6,16 +6,19 @@ require(stringdist)
 
 # prompt to ask user if they are adding data to an existing dataset
 repeat{
-  addition <- readline(prompt="Are you adding data to an existing dataset? (true/false) ")
-  if (addition %in% c(true, false)) {
+  addition <- readline(prompt="Are you adding data to an existing dataset? (yes/no) ")
+  if (addition %in% c("yes", "no")) {
     break
   }
 }
 
+if (addition == "yes") {addition = TRUE}
+if (addition == "no") {addition = FALSE}
+
 # if adding to an existing dataset, prompt for the file path of the existing dataset
 if (addition) {
   datafile <- readline(prompt="Enter file path for existing dataset (if nothing entered, will use cleanedContributions.csv): ")
-  if (is.na(datafile)) {
+  if (datafile == "") {
     datafile = "cleanedContributions.csv"
   }  
 }
@@ -107,10 +110,11 @@ contrib[duplicated(contrib[,c('SubDate','id')]),]$id <- paste(contrib[duplicated
 # deduplicate contribution records
 contrib <- contrib %>% distinct(id, .keep_all = TRUE)
 
-# add columns for sector, In-Kind, and PAC
+# add columns for sector, In-Kind, PAC, and id2 (id2 used for post-fuzzy match deduplication)
 contrib$Sector <- NA
 contrib$In.Kind <- "N"
 contrib$PAC <- "N"
+contrib$id2 <- contrib$id
 
 # add column with today's date for DataAddedDate
 contrib$DataAddedDate <- as.Date(Sys.Date(), "%m/%d/%Y")
