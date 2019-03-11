@@ -4,24 +4,10 @@ require(readr)
 require(data.table)
 require(stringdist)
 
-# prompt to ask user if they are adding data to an existing dataset
-repeat{
-  addition <- readline(prompt="Are you adding data to an existing dataset? (yes/no) ")
-  if (addition %in% c("yes", "no")) {
-    break
-  }
-}
-
-if (addition == "yes") {addition = TRUE}
-if (addition == "no") {addition = FALSE}
-
-# if adding to an existing dataset, prompt for the file path of the existing dataset
-if (addition) {
-  datafile <- readline(prompt="Enter file path for existing dataset (if nothing entered, will use cleanedContributions.csv): ")
-  if (datafile == "") {
-    datafile = "cleanedContributions.csv"
-  }  
-}
+# change to TRUE if you are adding new data to an existing dataset
+ADDITION <- FALSE
+# change to filepath of existing dataset if needed
+DATAFILE = "CleanedContributions.csv"
 
 # initialize data frames for each year as NA
 data2018 <- NA
@@ -91,7 +77,7 @@ contrib <- join(contrib, candidates, type="left", match="first")
 contrib <- contrib[contrib$City.Council %in% c("District", "At-Large"),]
 
 # create surrogate key for contribution records
-contrib$id = paste(contrib$FilerNameCleaned, contrib$Date, contrib$EntityName, contrib$Amount, sep = ";")
+contrib$id = paste(contrib$FilerName, contrib$Date, contrib$EntityName, contrib$Amount, sep = ";")
 
 # prepare cleaned donor name and ID columns
 contrib$Donor.Name.Cleaned = contrib$EntityName
@@ -110,7 +96,7 @@ contrib[duplicated(contrib[,c('SubDate','id')]),]$id <- paste(contrib[duplicated
 # deduplicate contribution records
 contrib <- contrib %>% distinct(id, .keep_all = TRUE)
 
-# add columns for sector, In-Kind, PAC, and id2 (id2 used for post-fuzzy match deduplication)
+# add columns for sector, In-Kind, PAC, and id2 (id2 used for second round of deduplication after completing fuzzy matching process)
 contrib$Sector <- NA
 contrib$In.Kind <- "N"
 contrib$PAC <- "N"
@@ -159,8 +145,8 @@ contrib <- contrib[c("EntityName", "Donor.Name.Cleaned", "Address", "EntityAddre
                       "Amount", "Date", "Description", "FilerName", "In.Kind", "PAC", "id", "DataAddedDate", "Year", "Cycle", "DocType", "SubDate", "matchcriteria")]
 
 # load already cleaned data if you are adding new data to an already prepared dataset
-if (addition) {
-  cleanedcontrib <- read.csv(datafile, header=TRUE)
+if (ADDITION) {
+  cleanedcontrib <- read.csv(DATAFILE, header=TRUE)
   
   # convert currencies to numbers
   cleanedcontrib$Amount <- as.numeric(gsub('[$,]', '', cleanedcontrib$Amount))
@@ -220,6 +206,6 @@ cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','id2')]),]$id2 <- paste(cl
 cleanedcontrib <- cleanedcontrib %>% distinct(id2, .keep_all = TRUE)
 
 # write cleaned contributions data file
-fwrite(cleanedcontrib, "cleanedContributions.csv")
+fwrite(cleanedcontrib, "CleanedContributions.csv")
 # write matches file for verification
 fwrite(as.data.frame(matches), "matches.csv")
