@@ -1,3 +1,10 @@
+# install.packages("plyr")
+# install.packages("dplyr")
+# nstall.packages("readr")
+# install.packages("data.table")
+# install.packages("stringdist")
+
+
 require(plyr)
 require(dplyr)
 require(readr)
@@ -169,12 +176,11 @@ matches <- matrix(c("value","match"),nrow=1,ncol=2)
 # loop through each row in original data frame
 for (i in 1:nrow(contrib)){
   print(i)
-  # if name or employer are NULL, then just match based on name, but with lower distance threshold
+  # if name or employer are NULL, then use Jaro-Winkler distance to match based on just name, with lower max distance threshold than in following case
   if (is.na(contrib$EntityAddressLine1) || is.na(contrib$EmployerName)) {
     closestmatch <- amatch(contrib$Donor.Name.Cleaned[i], cleanedcontrib$Donor.Name.Cleaned, method="jw", p=0.1, maxDist=0.03)
-  }
-  # otherwise find closest match in other rows using Jaro-Winkler distance on matchcriteria field
-  else {
+  } else {
+    # otherwise find closest match in other rows using Jaro-Winkler distance on matchcriteria field, with slightly higher max distance threshold
     closestmatch <- amatch(contrib$matchcriteria[i], cleanedcontrib$matchcriteria, method="jw", p=0.1, maxDist=0.09)
   }
   # if at least one near match was found

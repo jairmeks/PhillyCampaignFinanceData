@@ -1,3 +1,9 @@
+# install.packages("shiny")
+# install.packages("rsconnect")
+# install.packages("plyr")
+# install.packages("igraphy")
+
+
 library(shiny)
 library(rsconnect)
 library(plyr)
