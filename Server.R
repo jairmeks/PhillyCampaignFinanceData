@@ -3,60 +3,70 @@
 # install.packages("plyr")
 # install.packages("igraphy")
 
-
 library(shiny)
 library(rsconnect)
 library(plyr)
 library(igraph)
 
+# load data
+originalcontrib <- read.csv("FinalContributions.csv", fileEncoding = "UTF-8-BOM")
+originalcandidates <- read.csv("Campaigns.csv", fileEncoding = "UTF-8-BOM")
+committeenames <- read.csv("CommitteeNames.csv", fileEncoding = "UTF-8-BOM")
+displaynames <- read.csv("DisplayNames.csv", fileEncoding = "UTF-8-BOM")
+
+# filter out blank donor names
+originalcontrib <- originalcontrib[originalcontrib$Donor.Name.Cleaned!='',]
+
+# rename column in candidates data frame
+colnames(committeenames)[which(names(committeenames) == "Campaign.Committee.Name.Original")] <- "FilerName"
+
+# add cleaned committee names to contrib data frame
+originalcontrib <- join(originalcontrib, committeenames, match="first")
+
+# sort candidates file before joining with contributions
+originalcandidates <- originalcandidates[order(-originalcandidates$Election.Year),]
+
+# add column for election year to contrib data frame
+originalcontrib[originalcontrib$Year %in% c(2014,2015),c("Election.Year")] = 2015
+originalcontrib[originalcontrib$Year %in% c(2016,2017,2018,2019),c("Election.Year")] = 2019
+originalcontrib[originalcontrib$Year %in% c(2020,2021,2022,2023),c("Election.Year")] = 2023
+originalcontrib <- join(originalcontrib, originalcandidates, match="first")
+
+# convert to appropriate data types
+originalcontrib$Amount <- as.numeric(gsub('[$,]', '', originalcontrib$Amount))
+originalcontrib$Sector <- as.character(originalcontrib$Sector)
+
+# pull out donor attributes
+donorattributes <- unique(originalcontrib[,c("Donor.Name.Cleaned","Sector","PAC")])
+# donorattributes = aggregate(originalcontrib$Amount, by=list(Donor.Name.Cleaned = originalcontrib$Donor.Name.Cleaned, Sector = originalcontrib$Sector, PAC = originalcontrib$PAC), FUN=sum)
+
+# pull list of donors and append campaign committees, deduplicate
+originalentities <- data.frame(unique(originalcontrib$Donor.Name.Cleaned))
+colnames(originalentities) <- "EntityName"
+committeelist <- data.frame(EntityName = unique(committeenames$Campaign.Committee.Name.Cleaned))
+originalentities <- unique(rbind(originalentities, committeelist, stringsAsFactors = FALSE))
+
+# update column names in donor attributes and candidates tables
+colnames(donorattributes)[colnames(donorattributes)=="Donor.Name.Cleaned"] <- "EntityName"
+colnames(originalcandidates)[colnames(originalcandidates)=="Campaign.Committee.Name.Cleaned"] <- "EntityName"
+
+# sort donor attributes file so that PAC records come first
+donorattributes <- donorattributes[order(donorattributes$EntityName, -xtfrm(donorattributes$PAC)),]
+
+# join donor and candidate attributes
+originalentities <- join(originalentities, donorattributes, match="first")
+rm(donorattributes)
+originalentities <- join(originalentities, originalcandidates, match="first")
+
+# add display names
+originalentities <- join(originalentities, displaynames)
+
+# update sectors for campaign committees
+originalentities[!is.na(originalentities$Elected.Office),c("Sector")] <- "Politics / Campaign Committees"
+
+# launch server
 shinyServer(function(input, output) {
-  # load data
-  originalcontrib <- read.csv("FinalContributions.csv")
-  originalcandidates <- read.csv("CandidateStatus.csv")
-  displaynames <- read.csv("DisplayNames.csv")
   
-  # filter out blank donor names
-  originalcontrib <- originalcontrib[originalcontrib$Donor.Name.Cleaned!='',]
-
-  # deduplicate committee names
-  comm_dedup <- unique(originalcandidates[,c("Contribution.To","Campaign.Committee.Name.Cleaned")])
-  
-  # rename column in candidates data frame
-  colnames(originalcandidates)[which(names(originalcandidates) == "Campaign.Committee.Name.Original")] <- "FilerName"
-  
-  # add candidate info to contrib data frame
-  originalcontrib <- join(originalcontrib, originalcandidates, match="first")
-        
-  # pull out donor attributes
-  donorattributes <- originalcontrib[,c("Donor.Name.Cleaned","Sector")]
-  
-  # narrow down columns in candidate attributes
-  originalcandidates <- originalcandidates[,c("Contribution.To","ElectedOffice","City.Council","Incumbent","Political.Party","Campaign.Committee.Name.Cleaned")]
-  
-  # convert amounts to numeric
-  originalcontrib$Amount <- as.numeric(gsub('[$,]', '', originalcontrib$Amount))
-  
-  # pull list of donors and append campaign committees, deduplicate
-  originalentities <- data.frame(unique(originalcontrib$Donor.Name.Cleaned))
-  colnames(originalentities) <- "EntityName"
-  committeelist <- data.frame(EntityName = comm_dedup$Campaign.Committee.Name.Cleaned)
-  originalentities <- unique(rbind(originalentities, committeelist, stringsAsFactors = FALSE))
-  
-  # update column names in donor attributes and candidates tables
-  colnames(donorattributes)[colnames(donorattributes)=="Donor.Name.Cleaned"] <- "EntityName"
-  colnames(originalcandidates)[colnames(originalcandidates)=="Campaign.Committee.Name.Cleaned"] <- "EntityName"
-  
-  # join donor and campaign attributes
-  originalentities <- join(originalentities, donorattributes, match="first")
-  rm(donorattributes)
-  originalentities <- join(originalentities, originalcandidates, match="first")
-  
-  # add display names
-  originalentities <- join(originalentities, displaynames)
-  
-  # update sectors for campaign committees
-  originalentities[!is.na(originalentities$ElectedOffice),c("Sector")] <- "Politics / Campaign Committees"
-
   # re-scale scale factors for node size (larger scales->larger nodes)  
   scalefactor = reactive({ input$scalefactor / 100000 })
   candidatescale = reactive({ input$candidatescale / 10})
@@ -65,21 +75,20 @@ shinyServer(function(input, output) {
   # substitute Yes and No for Incumbents and Challengers respectively
   incumbentselection = reactive({ 
     gsub("Challengers", "No", gsub("Incumbents", "Yes", input$incumbent))
-        })
+  })
   
   output$plot <- renderPlot({
     # reload original data
     contrib <- originalcontrib
-    candidates <- originalcandidates
     entities <- originalentities
     
     # FILTERS
-    #contrib <- contrib[!(contrib$Contribution.To %in% c("Joe Cox", "Larry King", "Bill Heeney","Luigi Borda","Irina Goldstein","Melissa Robbins","Beth Finn","Adrian Rivera Reyes","Erika Almiron","Matt Wolfe","Tonya Bah")),]
+    # only include city council members and candidates
     contrib <- contrib[contrib$City.Council %in% c("District","At-Large"),]
+    # filter for incumbenets based on user selection
     contrib <- contrib[contrib$Incumbent %in% incumbentselection(),]
-    #contrib <- contrib[contrib$Donor.Name.Cleaned %in% c("Allan Domb","Joseph S Zuritsky", "Robert A Zuritsky"),]
-    #contrib <- contrib[contrib$Contribution.To %in% c("Darrell Clarke"),]
-    #contrib <- contrib[contrib$Sector %in% c("Real Estate & Building Industry"),]
+    # filter for date range
+    contrib <- contrib[contrib$Year %in% input$years,]
 
     # aggregate donor totals
     donorsums = aggregate(contrib$Amount, by=list(Donor = contrib$Donor.Name.Cleaned), FUN=sum)
@@ -121,19 +130,19 @@ shinyServer(function(input, output) {
     finalentities$Scale <- (finalentities$MoneyTotal * scalefactor())
     
     # join candidate info
-    colnames(candidates)[colnames(candidates)=="EntityName"] <- "Recipient"
-    filteredsums <- join(filteredsums, candidates, match="first")
+    # colnames(candidates)[colnames(candidates)=="EntityName"] <- "Recipient"
+    # filteredsums <- join(filteredsums, candidates, match="first")
     
     # make sure that donor name is coming before recipient name
-    filteredsums <- filteredsums[,c("Donor","Recipient","x","DonorTotal","Contribution.To","ElectedOffice","City.Council","Incumbent","Political.Party")]
+    filteredsums <- filteredsums[,c("Donor","Recipient","x","DonorTotal")]
     
     # create modified scale attribute for candidates
     finalentities$Scale2 <- finalentities$Scale
-    finalentities[!is.na(finalentities$ElectedOffice),c("Scale2")] <- finalentities[!is.na(finalentities$ElectedOffice),c("Scale2")] * candidatescale()
+    finalentities[!is.na(finalentities$Elected.Office),c("Scale2")] <- finalentities[!is.na(finalentities$Elected.Office),c("Scale2")] * candidatescale()
     
     # add labels for candidates only
     finalentities$Candidate.Label <- ""
-    finalentities[!is.na(finalentities$ElectedOffice),c("Candidate.Label")] <- as.character(finalentities[!is.na(finalentities$ElectedOffice),c("EntityName")])
+    finalentities[!is.na(finalentities$Elected.Office),c("Candidate.Label")] <- as.character(finalentities[!is.na(finalentities$Elected.Office),c("EntityName")])
     
     # create graph and include entity attributes
     g1 <- graph.data.frame(d = filteredsums, vertices = finalentities)
@@ -142,18 +151,13 @@ shinyServer(function(input, output) {
     layoutdef <- layout.fruchterman.reingold(g1)
     
     # color code by sector
-    sector_vertex_colors = get.vertex.attribute(g1,"Sector")
-    colors = c('Purple', 'Light Green', 'Orange', 'SkyBlue2', 'Red', 'Blue', 'Yellow', 'Grey')
-    sector_vertex_colors[sector_vertex_colors == "Charter / Education Privatization"] = colors[1]
-    sector_vertex_colors[sector_vertex_colors == "Food, Beverage & Tobacco"] = colors[2]
-    sector_vertex_colors[sector_vertex_colors == "Law"] = colors[3]
-    sector_vertex_colors[sector_vertex_colors == "Politics / Campaign Committees"] = colors[4] 
-    sector_vertex_colors[sector_vertex_colors == "Real Estate & Building Industry"] = colors[5]
-    sector_vertex_colors[sector_vertex_colors == "Unions"] = colors[6]
-    sector_vertex_colors[sector_vertex_colors == "Other"] = colors[7]
-    sector_vertex_colors[sector_vertex_colors == "Unknown"] = colors[8]
-    sector_vertex_colors[is.na(sector_vertex_colors)] = colors[8]
-    sector_vertex_colors[sector_vertex_colors == ''] = colors[8]
+    colors = c('SkyBlue2','Orange','Light Green')
+    pac_vertex_colors = get.vertex.attribute(g1, "PAC")
+    sector_vertex_colors = get.vertex.attribute(g1, "Sector")
+    vertex_colors = pac_vertex_colors
+    vertex_colors[pac_vertex_colors == "Y"] = colors[2]
+    vertex_colors[sector_vertex_colors == "Politics / Campaign Committees"] = colors[1]
+    vertex_colors[vertex_colors == "N"] = colors[3]
     
     # prepare labels
     labels <- get.vertex.attribute(g1, name="name")
@@ -165,7 +169,7 @@ shinyServer(function(input, output) {
     # scale edge widths
     E(g1)$width = get.edge.attribute(g1,name="x")/5000
     # set color scheme
-    V(g1)$color = sector_vertex_colors
+    V(g1)$color = vertex_colors
     # choose font family
     V(g1)$label.family = "mono"
     # set arrow size
@@ -186,19 +190,14 @@ shinyServer(function(input, output) {
          margin = zoomfactor()
     )
     
-    legend(1.3, 
-           1.3,
-           legend = c(paste('Charter / Education Privatization'), 
-                      paste('Food / Beverage / Tobacco'),
-                      paste('Law'),
-                      paste('Politics / Campaign Committee'),
-                      paste('Real Estate / Building Industry'),
-                      paste('Union'),
-                      paste('Other'),
-                      paste('Unknown')
+    legend(1.1, 
+           1.1,
+           legend = c(paste('City Council Candidate'), 
+                      paste('PAC Donor'),
+                      paste('Individual Donor')
            ),
-           fill = c('Purple', 'Light Green', 'Orange', 'SkyBlue2', 'Red', 'Blue', 'Yellow', 'Grey'),
-           cex = .9)
+           fill = c('SkyBlue2','Orange','Light Green'),
+           cex = 1)
   }, height=800)
 }
 )

@@ -59,9 +59,6 @@ contrib <- alldata[alldata$DocType %in% c("CFR - Schedule I - Part A - Contribut
                                           "CFR - Schedule II - Part F - In-Kind Contributions Received (Value of $50.01 to $250.00)", 
                                           "CFR - Schedule II - Part G - In-Kind Contributions Received (Value Over $250.00)"),]
 
-# filter full data for expenditure records
-expend <- alldata[alldata$DocType=="CFR - Schedule III - Statement of Expenditures",]
-
 rm(alldata)
 
 # filter out contributions with NULL amounts
@@ -73,12 +70,22 @@ contrib <- contrib[!(contrib$Description %in% c("REIMBURSEMENT")),]
 contrib$DocType = as.factor(contrib$DocType)
 contrib$Cycle = as.factor(contrib$Cycle)
 
-# read in candidate status data
-candidates <- read.csv("CandidateStatus.csv")
+# read in candidate status and committee names data
+candidates <- read.csv("Campaigns.csv", fileEncoding = "UTF-8-BOM")
+committees <- read.csv("CommitteeNames.csv", fileEncoding = "UTF-8-BOM")
 
-# join candidate names and attributes to contrib table
-colnames(candidates)[which(names(candidates) == "Campaign.Committee.Name.Original")] <- "FilerName"
-contrib <- join(contrib, candidates, type="left", match="first")
+# add cleaned committee names to contrib data frame
+colnames(committees)[which(names(committees) == "Campaign.Committee.Name.Original")] <- "FilerName"
+contrib <- join(contrib, committees, type="left", match="first")
+
+# sort candidates file before joining with contributions
+candidates <- candidates[order(-candidates$Election.Year),]
+
+# add column for election year to contrib data frame
+contrib[contrib$Year %in% c(2014,2015),c("Election.Year")] = 2015
+contrib[contrib$Year %in% c(2016,2017,2018,2019),c("Election.Year")] = 2019
+contrib[contrib$Year %in% c(2020,2021,2022,2023),c("Election.Year")] = 2023
+contrib <- join(contrib, candidates, match="first")
 
 # filter for just candidates currently on City Council or running for City Council (both District and At-Large seats)
 contrib <- contrib[contrib$City.Council %in% c("District", "At-Large"),]
@@ -180,7 +187,7 @@ for (i in 1:nrow(contrib)){
   if (is.na(contrib$EntityAddressLine1) || is.na(contrib$EmployerName)) {
     closestmatch <- amatch(contrib$Donor.Name.Cleaned[i], cleanedcontrib$Donor.Name.Cleaned, method="jw", p=0.1, maxDist=0.03)
   } else {
-    # otherwise find closest match in other rows using Jaro-Winkler distance on matchcriteria field, with slightly higher max distance threshold
+    # otherwise find closest match in other rows using Jaro-Winkler distance on matchcriteria field (name+employer+address), with slightly higher max distance threshold
     closestmatch <- amatch(contrib$matchcriteria[i], cleanedcontrib$matchcriteria, method="jw", p=0.1, maxDist=0.09)
   }
   # if at least one near match was found

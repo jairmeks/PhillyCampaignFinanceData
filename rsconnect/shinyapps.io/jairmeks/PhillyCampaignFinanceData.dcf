@@ -1,0 +1,13 @@
+name: PhillyCampaignFinanceData
+title: PhillyCampaignFinanceData
+username:
+account: jairmeks
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 780198
+bundleId: 1935305
+url: https://jairmeks.shinyapps.io/PhillyCampaignFinanceData/
+when: 1552443667.58819
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: CleanedContributions.csv|dataPrep.R|Explorer.Transactions.2007ytd.txt|Explorer.Transactions.2008ytd.txt|Explorer.Transactions.2009.YTD.txt|Explorer.Transactions.2010.txt|Explorer.Transactions.2011.txt|Explorer.Transactions.2012.YTD.txt|Explorer.Transactions.2013.YTD.txt|Explorer.Transactions.2014.YTD.txt|Explorer.Transactions.2015.YTD.txt|Explorer.Transactions.2016.YTD.txt|Explorer.Transactions.2017.YTD.txt|Explorer.Transactions.2018.YTD.txt|matches.csv|README.md
