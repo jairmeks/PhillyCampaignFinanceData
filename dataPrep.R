@@ -91,7 +91,7 @@ contrib <- join(contrib, candidates, match="first")
 contrib <- contrib[contrib$City.Council %in% c("District", "At-Large"),]
 
 # create surrogate key for contribution records
-contrib$id = paste(contrib$FilerName, contrib$Date, contrib$EntityName, contrib$Amount, sep = ";")
+contrib$ID = paste(contrib$FilerName, contrib$Date, contrib$EntityName, contrib$Amount, sep = ";")
 
 # prepare cleaned donor name and ID columns
 contrib$Donor.Name.Cleaned = contrib$EntityName
@@ -99,22 +99,22 @@ contrib$Donor.Name.Cleaned = contrib$EntityName
 # sort contribution records
 contrib <- contrib[order(contrib$EntityName, contrib$Date, contrib$FilerName, contrib$Amount),]
 
-# check for matching ids with same SubDate, and append letters to id's for these records to distinguish them
+# check for matching IDs with same SubDate, and append letters to IDs for these records to distinguish them
 # iterate five times to check for up to 4 donations of same amount on same day by same donor to same candidate
-contrib[duplicated(contrib[,c('SubDate','id')]),]$id <- paste(contrib[duplicated(contrib[,c('SubDate','id')]),]$id,"b", sep = ";")
-contrib[duplicated(contrib[,c('SubDate','id')]),]$id <- paste(contrib[duplicated(contrib[,c('SubDate','id')]),]$id,"c", sep = ";")
-contrib[duplicated(contrib[,c('SubDate','id')]),]$id <- paste(contrib[duplicated(contrib[,c('SubDate','id')]),]$id,"d", sep = ";")
-contrib[duplicated(contrib[,c('SubDate','id')]),]$id <- paste(contrib[duplicated(contrib[,c('SubDate','id')]),]$id,"e", sep = ";")
-contrib[duplicated(contrib[,c('SubDate','id')]),]$id <- paste(contrib[duplicated(contrib[,c('SubDate','id')]),]$id,"f", sep = ";")
+contrib[duplicated(contrib[,c('SubDate','ID')]),]$ID <- paste(contrib[duplicated(contrib[,c('SubDate','ID')]),]$ID,"b", sep = ";")
+contrib[duplicated(contrib[,c('SubDate','ID')]),]$ID <- paste(contrib[duplicated(contrib[,c('SubDate','ID')]),]$ID,"c", sep = ";")
+contrib[duplicated(contrib[,c('SubDate','ID')]),]$ID <- paste(contrib[duplicated(contrib[,c('SubDate','ID')]),]$ID,"d", sep = ";")
+contrib[duplicated(contrib[,c('SubDate','ID')]),]$ID <- paste(contrib[duplicated(contrib[,c('SubDate','ID')]),]$ID,"e", sep = ";")
+contrib[duplicated(contrib[,c('SubDate','ID')]),]$ID <- paste(contrib[duplicated(contrib[,c('SubDate','ID')]),]$ID,"f", sep = ";")
 
 # deduplicate contribution records
-contrib <- contrib %>% distinct(id, .keep_all = TRUE)
+contrib <- contrib %>% distinct(ID, .keep_all = TRUE)
 
-# add columns for sector, In-Kind, PAC, and id2 (id2 used for second round of deduplication after completing fuzzy matching process)
+# add columns for sector, In-Kind, PAC, and ID2 (ID2 used for second round of deduplication after completing fuzzy matching process)
 contrib$Sector <- NA
 contrib$In.Kind <- "N"
 contrib$PAC <- "N"
-contrib$id2 <- contrib$id
+contrib$ID2 <- contrib$ID
 
 # add column with today's date for DataAddedDate
 contrib$DataAddedDate <- as.Date(Sys.Date(), "%m/%d/%Y")
@@ -147,7 +147,7 @@ for (j in 1:6){
 contrib$Address <- gsub('\\.', "", contrib$Address)
 
 # create column with concatenated donor name, address, occupation, and employer
-contrib$matchcriteria <- paste(contrib$EntityName,contrib$Address,contrib$EmployerName)
+contrib$MatchCriteria <- paste(contrib$EntityName,contrib$Address,contrib$EmployerName)
 
 # convert to characters
 contrib$Donor.Name.Cleaned <- lapply(contrib$Donor.Name.Cleaned, as.character)
@@ -156,7 +156,7 @@ contrib$Sector <- lapply(contrib$Sector, as.character)
 # reduce dataframe to necessary columns
 contrib <- contrib[c("EntityName", "Donor.Name.Cleaned", "Address", "EntityAddressLine1", "EntityAddressLine2", "EntityCity", "EntityState", "EntityZip",
                      "EmployerName", "Occupation", "Sector", "EmployerAddressLine1", "EmployerAddressLine2", "EmployerCity", "EmployerState", "EmployerZip",
-                      "Amount", "Date", "Description", "FilerName", "In.Kind", "PAC", "id", "DataAddedDate", "Year", "Cycle", "DocType", "SubDate", "matchcriteria")]
+                      "Amount", "Date", "Description", "FilerName", "In.Kind", "PAC", "ID", "DataAddedDate", "Year", "Cycle", "DocType", "SubDate", "MatchCriteria")]
 
 # load already cleaned data if you are adding new data to an already prepared dataset
 if (ADDITION) {
@@ -187,15 +187,15 @@ for (i in 1:nrow(contrib)){
   if (is.na(contrib$EntityAddressLine1) || is.na(contrib$EmployerName)) {
     closestmatch <- amatch(contrib$Donor.Name.Cleaned[i], cleanedcontrib$Donor.Name.Cleaned, method="jw", p=0.1, maxDist=0.03)
   } else {
-    # otherwise find closest match in other rows using Jaro-Winkler distance on matchcriteria field (name+employer+address), with slightly higher max distance threshold
-    closestmatch <- amatch(contrib$matchcriteria[i], cleanedcontrib$matchcriteria, method="jw", p=0.1, maxDist=0.09)
+    # otherwise find closest match in other rows using Jaro-Winkler distance on MatchCriteria field (name+employer+address), with slightly higher max distance threshold
+    closestmatch <- amatch(contrib$MatchCriteria[i], cleanedcontrib$MatchCriteria, method="jw", p=0.1, maxDist=0.09)
   }
   # if at least one near match was found
   if (!is.na(closestmatch)){
     # if the donor name for the match is not an exact match with the donor name being compared
     if (cleanedcontrib$EntityName[closestmatch] != contrib$EntityName[i]){
       # store match details in result data frame
-      matches <- rbind(matches, c(contrib$matchcriteria[i], cleanedcontrib$matchcriteria[closestmatch]))
+      matches <- rbind(matches, c(contrib$MatchCriteria[i], cleanedcontrib$MatchCriteria[closestmatch]))
     }
     # update the cleaned donor name for the new record and add sectors from matching record
     contrib$Donor.Name.Cleaned[i] = toString(cleanedcontrib$Donor.Name.Cleaned[closestmatch])
@@ -205,18 +205,18 @@ for (i in 1:nrow(contrib)){
 }
 
 # create new, updated surrogate key for contribution records
-cleanedcontrib$id2 = paste(cleanedcontrib$FilerName, cleanedcontrib$Date, cleanedcontrib$Donor.Name.Cleaned, cleanedcontrib$Amount, sep = ";")
+cleanedcontrib$ID2 = paste(cleanedcontrib$FilerName, cleanedcontrib$Date, cleanedcontrib$Donor.Name.Cleaned, cleanedcontrib$Amount, sep = ";")
 
-# check for matching new ids with same SubDate, and append letters to new id's for these records to distinguish them
+# check for matching new IDs with same SubDate, and append letters to new ID's for these records to distinguish them
 # iterate 5 times to check for up to 5 donations of same amount on same day by same donor to same candidate
-cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','id2')]),]$id2 <- paste(cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','id2')]),]$id2,"b", sep = ";")
-cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','id2')]),]$id2 <- paste(cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','id2')]),]$id2,"c", sep = ";")
-cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','id2')]),]$id2 <- paste(cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','id2')]),]$id2,"d", sep = ";")
-cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','id2')]),]$id2 <- paste(cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','id2')]),]$id2,"e", sep = ";")
-cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','id2')]),]$id2 <- paste(cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','id2')]),]$id2,"f", sep = ";")
+cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','ID2')]),]$ID2 <- paste(cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','ID2')]),]$ID2,"b", sep = ";")
+cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','ID2')]),]$ID2 <- paste(cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','ID2')]),]$ID2,"c", sep = ";")
+cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','ID2')]),]$ID2 <- paste(cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','ID2')]),]$ID2,"d", sep = ";")
+cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','ID2')]),]$ID2 <- paste(cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','ID2')]),]$ID2,"e", sep = ";")
+cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','ID2')]),]$ID2 <- paste(cleanedcontrib[duplicated(cleanedcontrib[,c('SubDate','ID2')]),]$ID2,"f", sep = ";")
 
 # deduplicate contribution records
-cleanedcontrib <- cleanedcontrib %>% distinct(id2, .keep_all = TRUE)
+cleanedcontrib <- cleanedcontrib %>% distinct(ID2, .keep_all = TRUE)
 
 # write cleaned contributions data file
 fwrite(cleanedcontrib, "CleanedContributions.csv")
