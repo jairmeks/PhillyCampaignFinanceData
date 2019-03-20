@@ -7,7 +7,7 @@ Raw data source is City of Philadelphia Department of Records: ftp://ftp.phila-r
 To use the Campaign Finance Network web application, you can navigate to the following URL: https://jairmeks.shinyapps.io/PhillyCampaignFinanceData/
 
 To run the R scripts locally, open the .R files in RStudio. The scripts use the packages listed below, and these packages will need to be installed before running the scripts, if not already installed on the machine. You can use the “install.packages()” lines which are commented out near the top of the scripts to install the necessary packages, by running these lines in the R Studio Console (without the #).
-	- shiny, rsconnect, igraph, plyr, dplyr, readr, data.table, stringdist
+- shiny, rsconnect, igraph, plyr, dplyr, readr, data.table, stringdist
 	
 Before running the R scripts, make sure that the working directory is the source file location (can use setwd(“path/to/directory”) or choose this directory using the RStudio GUI). Then highlight the full R script code and click “Run” for the dataPrep.R script, or simply click “Run App” for either the ui.R or Server.R scripts.
 
