@@ -1,11 +1,13 @@
 # install.packages("shiny")
 # install.packages("rsconnect")
 # install.packages("plyr")
-# install.packages("igraphy")
+# install.packages("dplyr")
+# install.packages("igraph")
 
 library(shiny)
 library(rsconnect)
 library(plyr)
+library(dplyr)
 library(igraph)
 
 # load data
@@ -146,20 +148,16 @@ shinyServer(function(input, output) {
     finalentities$Candidate.Label <- ""
     finalentities[!is.na(finalentities$Elected.Office),c("Candidate.Label")] <- as.character(finalentities[!is.na(finalentities$Elected.Office),c("EntityName")])
     
+    # create vertex type attribute for color coding
+    finalentities$color <- 'Light Green' # for individuals
+    finalentities$color[finalentities$PAC=="Y"] <- "Orange" # for PACs
+    finalentities$color[finalentities$Sector=="Campaign Committees"] <- "SkyBlue2" # for campaign committees
+    
     # create graph using donor-recipient sums dataframe and include entity attributes
     g1 <- graph.data.frame(d = filteredsums, vertices = finalentities)
     
     # set layout
     layoutdef <- layout.fruchterman.reingold(g1)
-    
-    # color code vertices by sector and/or whether they are PACs
-    colors = c('SkyBlue2','Orange','Light Green')
-    pac_vertex_colors = get.vertex.attribute(g1, "PAC")
-    sector_vertex_colors = get.vertex.attribute(g1, "Sector")
-    vertex_colors = pac_vertex_colors
-    vertex_colors[pac_vertex_colors == "Y"] = colors[2]
-    vertex_colors[sector_vertex_colors == "Campaign Committees"] = colors[1]
-    vertex_colors[vertex_colors == "N"] = colors[3]
     
     # prepare vertex labels
     labels <- get.vertex.attribute(g1, name="name")
@@ -169,13 +167,14 @@ shinyServer(function(input, output) {
     labels[get.vertex.attribute(g1, name="DonorTotal") < input$labels & is.na(get.vertex.attribute(g1, name="City.Council"))] <- NA
     
     # scale edge widths
-    E(g1)$width = get.edge.attribute(g1,name="x")/5000
+    E(g1)$width = get.edge.attribute(g1,name="x")/6000
     # set color scheme
-    V(g1)$color = vertex_colors
+    edge.start <- ends(g1, es=E(g1), names=F)[,1]
+    edge.col <- V(g1)$color[edge.start]
     # choose font family
     V(g1)$label.family = "mono"
     # set arrow size
-    E(g1)$arrow.size = 0.05
+    E(g1)$arrow.size = 0.3
     # scale sizes of vertices
     V(g1)$size = get.vertex.attribute(g1,name="Scale2")
     # use bold format for candidate labels
@@ -187,6 +186,8 @@ shinyServer(function(input, output) {
     
     # plot network graph
     plot(g1,
+         # set edge colors and style
+         edge.color = edge.col,
          # set layout def
          layout=layoutdef,
          # set labels
@@ -194,7 +195,7 @@ shinyServer(function(input, output) {
          # scale zoom factor
          margin = zoomfactor()
     )
-    
+
     # add legend
     legend(1.1, 
            1.1,
@@ -202,8 +203,13 @@ shinyServer(function(input, output) {
                       paste('PAC Donor'),
                       paste('Individual Donor')
            ),
-           fill = c('SkyBlue2','Orange','Light Green'),
-           cex = 1)
+           pch=21,
+           col="#777777",
+           pt.bg = c('SkyBlue2','Orange','Light Green'),
+           cex = 1.1,
+           bty="n",
+           ncol=1)
   }, height=800)
 }
 )
+

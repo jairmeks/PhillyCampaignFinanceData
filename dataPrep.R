@@ -1,9 +1,8 @@
 # install.packages("plyr")
 # install.packages("dplyr")
-# nstall.packages("readr")
+# install.packages("readr")
 # install.packages("data.table")
 # install.packages("stringdist")
-
 
 require(plyr)
 require(dplyr)
